@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Токен бота (ваш токен)
+# Токен бота
 TOKEN = "8309854985:AAFV4TDV15QbOYzRAe35bsyQ6MpDC7iwByc"
 
 def decrypt_netwing_file(encrypted_data):
@@ -31,7 +31,7 @@ def decrypt_netwing_file(encrypted_data):
     # Метод 1: AES-256-CBC с SHA256 ключом
     try:
         key = hashlib.sha256(b'NetwingConfigKey2023').digest()
-        iv = b'NetwingConfigIV16'  # 16 байт для AES
+        iv = b'NetwingConfigIV16'
         cipher = AES.new(key, AES.MODE_CBC, iv)
         decrypted = cipher.decrypt(encrypted_data)
         decrypted = unpad(decrypted, AES.block_size)
@@ -111,7 +111,6 @@ def decrypt_netwing_file(encrypted_data):
     # Метод 7: Прямое декодирование
     try:
         text = encrypted_data.decode('utf-8', errors='ignore')
-        # Проверяем, что это не бинарный мусор
         if re.match(r'^[\x20-\x7E\n\r\t]+$', text[:100]) and len(text) > 10:
             results.append(('Прямое декодирование', text))
             logger.info("Прямое декодирование успешно")
@@ -119,7 +118,6 @@ def decrypt_netwing_file(encrypted_data):
         pass
     
     if results:
-        # Возвращаем первый успешный метод
         return results[0]
     else:
         raise Exception("Не удалось расшифровать файл ни одним из методов")
@@ -200,7 +198,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         document = update.message.document
         
-        # Проверяем расширение файла
         file_ext = Path(document.file_name).suffix.lower()
         if file_ext not in ['.netcfg', '.cfg', '.dat']:
             await update.message.reply_text(
@@ -208,7 +205,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        # Отправляем сообщение о начале обработки
         processing_msg = await update.message.reply_text(
             f"⏳ <b>Обработка файла...</b>\n\n"
             f"📁 <b>Имя:</b> {document.file_name}\n"
@@ -217,24 +213,18 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='HTML'
         )
         
-        # Скачиваем файл
         file = await document.get_file()
         
-        # Создаем временную директорию
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Сохраняем файл
             input_path = Path(temp_dir) / document.file_name
             await file.download_to_drive(input_path)
             
-            # Читаем файл
             with open(input_path, 'rb') as f:
                 encrypted_data = f.read()
             
-            # Расшифровываем
             try:
                 method, decrypted_content = decrypt_netwing_file(encrypted_data)
                 
-                # Проверяем результат
                 if len(decrypted_content.strip()) < 5:
                     await processing_msg.edit_text(
                         "❌ <b>Не удалось расшифровать файл</b>\n\n"
@@ -245,13 +235,11 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     return
                 
-                # Сохраняем расшифрованный файл
                 output_name = f"decrypted_{Path(document.file_name).stem}.txt"
                 output_path = Path(temp_dir) / output_name
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(decrypted_content)
                 
-                # Отправляем результат
                 with open(output_path, 'rb') as f:
                     await update.message.reply_document(
                         document=f,
@@ -262,7 +250,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode='HTML'
                     )
                 
-                # Если содержимое небольшое, показываем превью
                 if len(decrypted_content) < 2000:
                     preview = decrypted_content[:1000] + "..." if len(decrypted_content) > 1000 else decrypted_content
                     await update.message.reply_text(
@@ -289,7 +276,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик ошибок"""
     logger.error(f"Update {update} caused error {context.error}")
-    
     try:
         await update.message.reply_text(
             "⚠️ Произошла ошибка. Попробуйте позже или отправьте другой файл."
@@ -299,21 +285,14 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Основная функция запуска бота"""
-    # Создаем приложение
     application = Application.builder().token(TOKEN).build()
     
-    # Добавляем обработчики команд
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("methods", methods))
-    
-    # Добавляем обработчик файлов
     application.add_handler(MessageHandler(filters.Document.ALL, handle_file))
-    
-    # Добавляем обработчик ошибок
     application.add_error_handler(error_handler)
     
-    # Запускаем бота
     print("🤖 Бот запущен и готов к работе!")
     print(f"🔗 Токен: {TOKEN[:10]}...")
     print("📋 Доступные команды: /start, /help, /methods")
