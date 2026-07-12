@@ -6,11 +6,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import base64
 import json
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
-import hashlib
-import re
-import zlib
+import html
 
 # Настройка логирования
 logging.basicConfig(
@@ -24,123 +20,156 @@ TOKEN = "8309854985:AAFV4TDV15QbOYzRAe35bsyQ6MpDC7iwByc"
 
 def decrypt_netwing_file(encrypted_data):
     """
-    Расшифровка .netcfg файла Netwing с поддержкой различных методов
+    Расшифровка .netcfg файлов Netwing с поддержкой XOR
     """
     results = []
     
-    # Метод 1: AES-256-CBC с SHA256 ключом
+    # Анализируем структуру зашифрованных данных
+    logger.info(f"Размер зашифрованных данных: {len(encrypted_data)} байт")
+    
+    # Метод 1: XOR с ключом 'NetwingConfigKey2023'
     try:
-        key = hashlib.sha256(b'NetwingConfigKey2023').digest()
-        iv = b'NetwingConfigIV16'
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted = cipher.decrypt(encrypted_data)
-        decrypted = unpad(decrypted, AES.block_size)
-        result = decrypted.decode('utf-8', errors='ignore')
-        if result.strip():
-            results.append(('AES-256-CBC', result))
-            logger.info("Метод AES-256-CBC успешен")
-    except Exception as e:
-        logger.debug(f"AES метод не сработал: {e}")
-    
-    # Метод 2: AES-128-CBC
-    try:
-        key = hashlib.md5(b'NetwingConfigKey2023').digest()
-        iv = b'NetwingConfigIV16'
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted = cipher.decrypt(encrypted_data)
-        decrypted = unpad(decrypted, AES.block_size)
-        result = decrypted.decode('utf-8', errors='ignore')
-        if result.strip():
-            results.append(('AES-128-CBC', result))
-            logger.info("Метод AES-128-CBC успешен")
-    except Exception as e:
-        logger.debug(f"AES-128 метод не сработал: {e}")
-    
-    # Метод 3: XOR с различными ключами
-    xor_keys = [
-        b'NetwingConfigKey2023',
-        b'NetwingConfigKey',
-        b'netwing2023',
-        b'configkey',
-        b'Netwing',
-        b'\x01\x02\x03\x04\x05'
-    ]
-    
-    for key in xor_keys:
-        try:
-            result = bytearray()
-            for i, byte in enumerate(encrypted_data):
-                result.append(byte ^ key[i % len(key)])
-            text = result.decode('utf-8', errors='ignore')
-            if text.strip() and len(text) > 10:
-                results.append((f'XOR с ключом {key[:10]}...', text))
-                logger.info(f"XOR метод с ключом {key[:10]} успешен")
-                break
-        except:
-            continue
-    
-    # Метод 4: Base64 декодирование
-    try:
-        decoded = base64.b64decode(encrypted_data)
-        text = decoded.decode('utf-8', errors='ignore')
+        key = b'NetwingConfigKey2023'
+        result = bytearray()
+        for i, byte in enumerate(encrypted_data):
+            result.append(byte ^ key[i % len(key)])
+        text = result.decode('utf-8', errors='ignore')
         if text.strip() and len(text) > 10:
-            results.append(('Base64 декодирование', text))
-            logger.info("Base64 метод успешен")
-    except:
-        pass
+            # Проверяем наличие JSON структуры
+            if any(marker in text for marker in ['{', '}', '"', ':']):
+                results.append(('XOR (NetwingConfigKey2023)', text))
+                logger.info("XOR метод с ключом NetwingConfigKey2023 успешен")
+    except Exception as e:
+        logger.debug(f"XOR метод 1 не сработал: {e}")
     
-    # Метод 5: Попытка распарсить как JSON
+    # Метод 2: XOR с ключом 'Destroy3' (из названия)
     try:
-        data = json.loads(encrypted_data.decode('utf-8', errors='ignore'))
-        text = json.dumps(data, indent=2, ensure_ascii=False)
-        results.append(('JSON парсинг', text))
-        logger.info("JSON метод успешен")
-    except:
-        pass
-    
-    # Метод 6: Распаковка zlib
-    try:
-        decompressed = zlib.decompress(encrypted_data)
-        text = decompressed.decode('utf-8', errors='ignore')
+        key = b'Destroy3'
+        result = bytearray()
+        for i, byte in enumerate(encrypted_data):
+            result.append(byte ^ key[i % len(key)])
+        text = result.decode('utf-8', errors='ignore')
         if text.strip() and len(text) > 10:
-            results.append(('Zlib распаковка', text))
-            logger.info("Zlib метод успешен")
-    except:
-        pass
+            if any(marker in text for marker in ['{', '}', '"', ':']):
+                results.append(('XOR (Destroy3)', text))
+                logger.info("XOR метод с ключом Destroy3 успешен")
+    except Exception as e:
+        logger.debug(f"XOR метод 2 не сработал: {e}")
+    
+    # Метод 3: XOR с ключом '10sec teleport' (из названия)
+    try:
+        key = b'10sec teleport'
+        result = bytearray()
+        for i, byte in enumerate(encrypted_data):
+            result.append(byte ^ key[i % len(key)])
+        text = result.decode('utf-8', errors='ignore')
+        if text.strip() and len(text) > 10:
+            if any(marker in text for marker in ['{', '}', '"', ':']):
+                results.append(('XOR (10sec teleport)', text))
+                logger.info("XOR метод с ключом 10sec teleport успешен")
+    except Exception as e:
+        logger.debug(f"XOR метод 3 не сработал: {e}")
+    
+    # Метод 4: XOR с ключом 'netwing'
+    try:
+        key = b'netwing'
+        result = bytearray()
+        for i, byte in enumerate(encrypted_data):
+            result.append(byte ^ key[i % len(key)])
+        text = result.decode('utf-8', errors='ignore')
+        if text.strip() and len(text) > 10:
+            if any(marker in text for marker in ['{', '}', '"', ':']):
+                results.append(('XOR (netwing)', text))
+                logger.info("XOR метод с ключом netwing успешен")
+    except Exception as e:
+        logger.debug(f"XOR метод 4 не сработал: {e}")
+    
+    # Метод 5: XOR с ключом 'config'
+    try:
+        key = b'config'
+        result = bytearray()
+        for i, byte in enumerate(encrypted_data):
+            result.append(byte ^ key[i % len(key)])
+        text = result.decode('utf-8', errors='ignore')
+        if text.strip() and len(text) > 10:
+            if any(marker in text for marker in ['{', '}', '"', ':']):
+                results.append(('XOR (config)', text))
+                logger.info("XOR метод с ключом config успешен")
+    except Exception as e:
+        logger.debug(f"XOR метод 5 не сработал: {e}")
+    
+    # Метод 6: XOR с автоматическим определением ключа
+    try:
+        # Ищем известные паттерны в зашифрованных данных
+        if encrypted_data and len(encrypted_data) > 50:
+            # Пробуем найти ключ, сравнивая с ожидаемой структурой JSON
+            known_pattern = b'{"author":"'
+            key = bytearray()
+            for i in range(len(encrypted_data)):
+                if i < len(known_pattern):
+                    key.append(encrypted_data[i] ^ known_pattern[i])
+            
+            # Используем найденный ключ
+            if len(key) > 5:
+                result = bytearray()
+                for i, byte in enumerate(encrypted_data):
+                    result.append(byte ^ key[i % len(key)])
+                text = result.decode('utf-8', errors='ignore')
+                if text.strip() and len(text) > 10:
+                    if any(marker in text for marker in ['{', '}', '"', ':']):
+                        results.append(('XOR (автоматический ключ)', text))
+                        logger.info("Автоматическое определение ключа успешно")
+    except Exception as e:
+        logger.debug(f"Автоматическое определение ключа не сработало: {e}")
     
     # Метод 7: Прямое декодирование
     try:
         text = encrypted_data.decode('utf-8', errors='ignore')
-        if re.match(r'^[\x20-\x7E\n\r\t]+$', text[:100]) and len(text) > 10:
-            results.append(('Прямое декодирование', text))
-            logger.info("Прямое декодирование успешно")
+        if text.strip() and len(text) > 10:
+            if any(marker in text for marker in ['{', '}', '"', ':']):
+                results.append(('Прямое декодирование', text))
+                logger.info("Прямое декодирование успешно")
     except:
         pass
     
     if results:
+        # Возвращаем первый успешный метод
         return results[0]
     else:
         raise Exception("Не удалось расшифровать файл ни одним из методов")
 
+def validate_and_fix_json(text):
+    """Проверяем и исправляем JSON если нужно"""
+    try:
+        # Пробуем распарсить
+        data = json.loads(text)
+        return json.dumps(data, indent=2, ensure_ascii=False)
+    except:
+        # Если не получается, возвращаем как есть
+        return text
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
     welcome_text = """
-🔐 <b>Netwing Config Decryptor Bot</b>
+🔐 <b>Netwing Config Decryptor Bot v2.0</b>
+
+✅ <b>Обновленная версия с поддержкой XOR шифрования!</b>
 
 Отправьте мне файл с расширением <b>.netcfg</b>, и я расшифрую его!
 
-<b>📋 Возможности:</b>
-• Поддержка 7+ методов расшифровки
-• Автоматический выбор лучшего метода
-• Расшифровка конфигурационных файлов Netwing
+<b>📋 Особенности:</b>
+• Специализированный XOR декодер
+• Автоматическое определение ключа
+• Поддержка JSON формата
+• Сохранение в правильном формате
 
 <b>📤 Как использовать:</b>
 1. Нажмите на скрепку 📎
 2. Выберите файл .netcfg
 3. Отправьте мне
 
-<b>⚡ Быстро и безопасно</b>
-Файлы обрабатываются временно и не сохраняются
+<b>⚡ Быстро и точно</b>
+Специально для конфигов Netwing
 
 <i>Создано для Netwing Tools</i>
 """
@@ -149,47 +178,42 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /help"""
     help_text = """
-<b>📖 Помощь по боту</b>
+<b>📖 Помощь по боту v2.0</b>
 
 🔹 <b>/start</b> - Начать работу
 🔹 <b>/help</b> - Показать это сообщение
 🔹 <b>/methods</b> - Показать методы расшифровки
 
+<b>🔧 Новые методы:</b>
+• XOR с ключом 'NetwingConfigKey2023'
+• XOR с ключом 'Destroy3'
+• XOR с ключом '10sec teleport'
+• Автоматическое определение ключа
+
 <b>📁 Поддерживаемые файлы:</b>
 • .netcfg (основной формат)
 • .cfg (некоторые конфиги)
-• .dat (некоторые данные)
 
 <b>⚠️ Важно:</b>
 • Файлы не сохраняются на сервере
-• Размер файла до 50 МБ
-• Время обработки до 10 секунд
-
-<b>🔧 Алгоритмы:</b>
-• AES-256-CBC
-• AES-128-CBC  
-• XOR шифрование
-• Base64 декодирование
-• JSON парсинг
-• Zlib распаковка
-• Прямое декодирование
+• Корректное сохранение JSON структуры
 """
     await update.message.reply_text(help_text, parse_mode='HTML')
 
 async def methods(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показать методы расшифровки"""
     methods_text = """
-<b>🔬 Доступные методы расшифровки</b>
+<b>🔬 Специализированные методы XOR</b>
 
-1️⃣ <b>AES-256-CBC</b> - SHA256 хеширование ключа
-2️⃣ <b>AES-128-CBC</b> - MD5 хеширование ключа
-3️⃣ <b>XOR</b> - Побитовое XOR с ключом
-4️⃣ <b>Base64</b> - Декодирование Base64
-5️⃣ <b>JSON</b> - Парсинг JSON структуры
-6️⃣ <b>Zlib</b> - Распаковка сжатых данных
-7️⃣ <b>Прямое</b> - Попытка прямого декодирования
+1️⃣ <b>XOR (NetwingConfigKey2023)</b> - Основной ключ
+2️⃣ <b>XOR (Destroy3)</b> - Ключ из названия
+3️⃣ <b>XOR (10sec teleport)</b> - Ключ из названия
+4️⃣ <b>XOR (netwing)</b> - Стандартный ключ
+5️⃣ <b>XOR (config)</b> - Альтернативный ключ
+6️⃣ <b>XOR (автоматический)</b> - Определение по паттерну
+7️⃣ <b>Прямое декодирование</b> - Если всё остальное не сработало
 
-<i>Бот автоматически перебирает методы и выбирает лучший результат</i>
+<i>Бот автоматически выбирает лучший метод</i>
 """
     await update.message.reply_text(methods_text, parse_mode='HTML')
 
@@ -199,9 +223,9 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         document = update.message.document
         
         file_ext = Path(document.file_name).suffix.lower()
-        if file_ext not in ['.netcfg', '.cfg', '.dat']:
+        if file_ext not in ['.netcfg', '.cfg']:
             await update.message.reply_text(
-                "❌ Пожалуйста, отправьте файл с расширением .netcfg, .cfg или .dat"
+                "❌ Пожалуйста, отправьте файл с расширением .netcfg или .cfg"
             )
             return
         
@@ -209,7 +233,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⏳ <b>Обработка файла...</b>\n\n"
             f"📁 <b>Имя:</b> {document.file_name}\n"
             f"📦 <b>Размер:</b> {document.file_size:,} байт\n\n"
-            f"🔄 <b>Статус:</b> Расшифровка...",
+            f"🔄 <b>Статус:</b> Расшифровка XOR...",
             parse_mode='HTML'
         )
         
@@ -228,34 +252,44 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if len(decrypted_content.strip()) < 5:
                     await processing_msg.edit_text(
                         "❌ <b>Не удалось расшифровать файл</b>\n\n"
-                        "Возможные причины:\n"
-                        "• Файл поврежден или пустой\n"
-                        "• Неизвестный метод шифрования\n"
-                        "• Файл не является .netcfg"
+                        "Попробуйте другой файл"
                     )
                     return
                 
-                output_name = f"decrypted_{Path(document.file_name).stem}.txt"
-                output_path = Path(temp_dir) / output_name
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    f.write(decrypted_content)
+                # Пробуем отформатировать как JSON
+                try:
+                    formatted_content = validate_and_fix_json(decrypted_content)
+                except:
+                    formatted_content = decrypted_content
                 
+                # Сохраняем файл в правильном формате
+                output_name = f"decrypted_{Path(document.file_name).stem}.json"
+                output_path = Path(temp_dir) / output_name
+                
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(formatted_content)
+                
+                # Отправляем файл
                 with open(output_path, 'rb') as f:
                     await update.message.reply_document(
                         document=f,
                         filename=output_name,
                         caption=f"✅ <b>Файл успешно расшифрован!</b>\n\n"
                                f"🔑 <b>Метод:</b> {method}\n"
-                               f"📊 <b>Размер:</b> {len(decrypted_content):,} символов",
+                               f"📊 <b>Размер:</b> {len(formatted_content):,} символов\n\n"
+                               f"💡 Сохранен в формате .json",
                         parse_mode='HTML'
                     )
                 
-                if len(decrypted_content) < 2000:
-                    preview = decrypted_content[:1000] + "..." if len(decrypted_content) > 1000 else decrypted_content
-                    await update.message.reply_text(
-                        f"📄 <b>Предпросмотр:</b>\n\n<code>{preview}</code>",
-                        parse_mode='HTML'
-                    )
+                # Отправляем превью
+                preview = formatted_content[:1500]
+                if len(formatted_content) > 1500:
+                    preview += "\n\n... (файл отправлен выше)"
+                
+                await update.message.reply_text(
+                    f"📄 <b>Предпросмотр:</b>\n\n<pre>{html.escape(preview)}</pre>",
+                    parse_mode='HTML'
+                )
                 
                 await processing_msg.delete()
                 
@@ -263,14 +297,14 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"Ошибка расшифровки: {e}")
                 await processing_msg.edit_text(
                     f"❌ <b>Ошибка при расшифровке</b>\n\n"
-                    f"<code>{str(e)[:300]}</code>\n\n"
-                    "Попробуйте другой файл или обратитесь к разработчику."
+                    f"<code>{html.escape(str(e)[:300])}</code>",
+                    parse_mode='HTML'
                 )
                 
     except Exception as e:
         logger.error(f"Общая ошибка: {e}")
         await update.message.reply_text(
-            "❌ Произошла ошибка при обработке файла. Попробуйте еще раз."
+            "❌ Произошла ошибка. Попробуйте еще раз."
         )
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -278,7 +312,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")
     try:
         await update.message.reply_text(
-            "⚠️ Произошла ошибка. Попробуйте позже или отправьте другой файл."
+            "⚠️ Произошла ошибка. Попробуйте позже."
         )
     except:
         pass
@@ -293,9 +327,9 @@ def main():
     application.add_handler(MessageHandler(filters.Document.ALL, handle_file))
     application.add_error_handler(error_handler)
     
-    print("🤖 Бот запущен и готов к работе!")
+    print("🤖 Бот v2.0 запущен и готов к работе!")
     print(f"🔗 Токен: {TOKEN[:10]}...")
-    print("📋 Доступные команды: /start, /help, /methods")
+    print("📋 Специализированный XOR декодер для Netwing")
     
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
